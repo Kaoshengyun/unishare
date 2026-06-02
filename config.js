@@ -121,8 +121,16 @@ async function loadRemoteBks() {
         };
         // 過濾掉已刪除或資料不完整的紀錄
         if (b.status === 'deleted' || !b.date || !b.sh || !b.eh) return;
+        // 修正日期格式：若是 ISO 格式（2026-06-01T16:00:00.000Z）轉成台北時間日期字串
+        let dateStr = String(b.date);
+        if (dateStr.includes('T')) {
+          const d = new Date(dateStr);
+          const tw = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+          dateStr = tw; // 格式 YYYY-MM-DD
+        }
         result[b.id] = {
           ...b,
+          date: dateStr,
           sh: parseHour(b.sh),
           eh: parseHour(b.eh),
           price: Number(String(b.price).replace(/[^0-9.]/g, '')) || 0
