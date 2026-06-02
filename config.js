@@ -2,7 +2,20 @@
    ⚠️  網站設定
    ═══════════════════════════════════════════════ */
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbwqsWzwOoUeWfWPOR3NXMUcR5BnZ4nzR672IRie9cmz3aBKM410rV8G7_jM_5Do4X7frA/exec';
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfOOR4jKBrC3y3_Q_rRtcXVNaCqFAGz99VYTGpdsORV1FKnHA/formResponse';
+const FORM_FIELDS = {
+  id:      'entry.403784970',
+  date:    'entry.828530108',
+  sh:      'entry.662974968',
+  eh:      'entry.340059178',
+  name:    'entry.1076069062',
+  phone:   'entry.528036549',
+  price:   'entry.1693986945',
+  status:  'entry.795255319',
+  source:  'entry.260390198',
+  ts:      'entry.413342022',
+  paidAt:  'entry.1354803585'
+};
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQtWR3rENgJJ1AAVwWVWziOlVKCsqInE7HzEr1I-PXPhWgKyj2kwVhPuvAricNGpDLTKRCacYOZHue4/pub?output=csv';
 
 const BLOCKS_KEY  = 'youni_blocks';
@@ -135,22 +148,33 @@ async function loadRemoteBks() {
 
 function loadLocalBks() { return _bksCache; }
 
-/* ══ 寫入：no-cors GET ══ */
+/* ══ 寫入：Google Forms（保證可用） ══ */
+async function submitToForm(data) {
+  const body = new URLSearchParams();
+  Object.keys(FORM_FIELDS).forEach(k => {
+    body.append(FORM_FIELDS[k], data[k] !== undefined ? data[k] : '');
+  });
+  try {
+    await fetch(FORM_URL, { method:'POST', mode:'no-cors', body });
+  } catch(e) {}
+}
+
 async function saveRemoteBk(id, bk) {
-  const p = new URLSearchParams({ action:'add', id, ...bk });
-  try { await fetch(API_URL + '?' + p, { mode:'no-cors' }); } catch(e) {}
+  await submitToForm({ id, ...bk });
   _bksCache[id] = { id, ...bk };
 }
 
 async function updateRemoteBk(id, patch) {
-  const p = new URLSearchParams({ action:'update', id, ...patch });
-  try { await fetch(API_URL + '?' + p, { mode:'no-cors' }); } catch(e) {}
+  // 更新：先從 cache 取得完整資料再整筆重送
+  const full = { ...(_bksCache[id] || {}), ...patch, id };
+  await submitToForm(full);
   if (_bksCache[id]) Object.assign(_bksCache[id], patch);
 }
 
 async function deleteRemoteBk(id) {
-  const p = new URLSearchParams({ action:'delete', id });
-  try { await fetch(API_URL + '?' + p, { mode:'no-cors' }); } catch(e) {}
+  // Google Forms 無法刪除，改用標記方式
+  const full = { ...(_bksCache[id] || {}), status:'deleted', id };
+  await submitToForm(full);
   delete _bksCache[id];
 }
 
