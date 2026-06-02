@@ -87,39 +87,27 @@ const USAGE_RULES = [
   { icon:ICONS.leave,  title:'離場請勿久留', text:'離場時請勿在公共區域群聚。若打擾到公共安寧，相關責任需自行承擔。' }
 ];
 
-/* ══ API 呼叫工具 ══ */
-async function apiGet(params) {
+/* ══ API 呼叫（用 GET + 參數避免 CORS） ══ */
+async function apiCall(params) {
   const url = API_URL + '?' + new URLSearchParams(params);
-  const res = await fetch(url);
-  return res.json();
+  const res = await fetch(url, { redirect: 'follow' });
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch { return { error: text }; }
 }
 
-async function apiPost(data) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify(data)
-  });
-  return res.json();
-}
-
-/* ══ 預約資料（改用 Google Sheets） ══ */
+/* ══ 預約資料（Google Sheets） ══ */
 let _bksCache = {};
-let _bksLoaded = false;
 
 async function loadRemoteBks() {
-  const data = await apiGet({ action: 'getAll' });
+  const data = await apiCall({ action: 'getAll' });
   const result = {};
   if (Array.isArray(data)) {
     data.forEach(b => {
-      if (b.id) result[b.id] = {
-        ...b,
-        sh: Number(b.sh),
-        eh: Number(b.eh)
-      };
+      if (b.id) result[b.id] = { ...b, sh: Number(b.sh), eh: Number(b.eh) };
     });
   }
   _bksCache = result;
-  _bksLoaded = true;
   return result;
 }
 
@@ -128,21 +116,25 @@ function loadLocalBks() {
 }
 
 async function saveRemoteBk(id, bk) {
-  await apiPost({ action: 'add', id, ...bk });
+  const params = { action: 'add', id };
+  Object.keys(bk).forEach(k => params[k] = bk[k]);
+  await apiCall(params);
   _bksCache[id] = bk;
 }
 
 async function updateRemoteBk(id, patch) {
-  await apiPost({ action: 'update', id, ...patch });
+  const params = { action: 'update', id };
+  Object.keys(patch).forEach(k => params[k] = patch[k]);
+  await apiCall(params);
   if (_bksCache[id]) Object.assign(_bksCache[id], patch);
 }
 
 async function deleteRemoteBk(id) {
-  await apiPost({ action: 'delete', id });
+  await apiCall({ action: 'delete', id });
   delete _bksCache[id];
 }
 
-/* ══ 關閉時段（仍用 localStorage） ══ */
+/* ══ 關閉時段（localStorage） ══ */
 function loadBlocks() {
   try { return JSON.parse(localStorage.getItem(BLOCKS_KEY) || '{}'); }
   catch { return {}; }
@@ -225,8 +217,7 @@ function formatReserveRemain(b) {
 }
 
 async function markBookingPaid(id) {
-  const patch = { status:'paid', paidAt: new Date().toISOString() };
-  await updateRemoteBk(id, patch);
+  await updateRemoteBk(id, { status:'paid', paidAt: new Date().toISOString() });
 }
 
 async function deleteBooking(id) {
