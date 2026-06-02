@@ -124,6 +124,7 @@ a{text-decoration:none}
 .bk-price.past-p{color:#999}
 .local-hint{background:#FFF8E7;border:1px solid #FFE0B2;border-radius:10px;padding:10px 12px;font-size:11px;color:#666;margin-bottom:12px;line-height:1.6;display:flex;align-items:flex-start;gap:6px;text-align:left}
 .local-hint img{width:16px;height:16px;object-fit:contain;flex-shrink:0;margin-top:1px}
+.local-hint-t{flex:1;min-width:0}
 
 /* Admin day tools */
 .admin-panel{background:#fff;border:1px solid #e2ece5;border-radius:12px;padding:12px;margin-top:12px}
