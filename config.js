@@ -2,7 +2,8 @@
    ⚠️  網站設定
    ═══════════════════════════════════════════════ */
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbyaq4B-3gt22k-dMBw-Sd_S2nHJqtvfsTyimw2tmzyV54WNLf0J7zS6MHltL2-04gm3vA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwqsWzwOoUeWfWPOR3NXMUcR5BnZ4nzR672IRie9cmz3aBKM410rV8G7_jM_5Do4X7frA/exec';
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQtWR3rENgJJ1AAVwWVWziOlVKCsqInE7HzEr1I-PXPhWgKyj2kwVhPuvAricNGpDLTKRCacYOZHue4/pub?output=csv';
 
 const BLOCKS_KEY  = 'youni_blocks';
 const ADMIN_PW    = '54662771';
@@ -87,50 +88,70 @@ const USAGE_RULES = [
   { icon:ICONS.leave,  title:'離場請勿久留', text:'離場時請勿在公共區域群聚。若打擾到公共安寧，相關責任需自行承擔。' }
 ];
 
-/* ══ API 呼叫（用 GET + 參數避免 CORS） ══ */
-async function apiCall(params) {
-  const url = API_URL + '?' + new URLSearchParams(params);
-  const res = await fetch(url, { redirect: 'follow' });
-  const text = await res.text();
-  try { return JSON.parse(text); }
-  catch { return { error: text }; }
-}
-
-/* ══ 預約資料（Google Sheets） ══ */
+/* ══ 讀取：用公開 CSV ══ */
 let _bksCache = {};
 
-async function loadRemoteBks() {
-  const data = await apiCall({ action: 'getAll' });
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 3) return {};
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
   const result = {};
-  if (Array.isArray(data)) {
-    data.forEach(b => {
-      if (b.id) result[b.id] = { ...b, sh: Number(b.sh), eh: Number(b.eh) };
-    });
+  for (let i = 2; i < lines.length; i++) {
+    const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const obj = {};
+    headers.forEach((h, j) => obj[h] = vals[j] || '');
+    if (obj.id) result[obj.id] = { ...obj, sh: Number(obj.sh), eh: Number(obj.eh) };
   }
-  _bksCache = result;
   return result;
+}
+
+async function loadRemoteBks() {
+  try {
+    const res = await fetch(CSV_URL + '&t=' + Date.now());
+    const text = await res.text();
+    _bksCache = parseCSV(text);
+  } catch(e) {
+    console.error('讀取失敗', e);
+    _bksCache = {};
+  }
+  return _bksCache;
 }
 
 function loadLocalBks() {
   return _bksCache;
 }
 
+/* ══ 寫入：用 no-cors POST ══ */
 async function saveRemoteBk(id, bk) {
-  const params = { action: 'add', id };
-  Object.keys(bk).forEach(k => params[k] = bk[k]);
-  await apiCall(params);
+  const params = new URLSearchParams({ action:'add', id, ...bk });
+  try {
+    await fetch(API_URL + '?' + params.toString(), {
+      method: 'GET',
+      mode: 'no-cors'
+    });
+  } catch(e) { /* no-cors 一定會 catch，忽略 */ }
   _bksCache[id] = bk;
 }
 
 async function updateRemoteBk(id, patch) {
-  const params = { action: 'update', id };
-  Object.keys(patch).forEach(k => params[k] = patch[k]);
-  await apiCall(params);
+  const params = new URLSearchParams({ action:'update', id, ...patch });
+  try {
+    await fetch(API_URL + '?' + params.toString(), {
+      method: 'GET',
+      mode: 'no-cors'
+    });
+  } catch(e) { /* 忽略 */ }
   if (_bksCache[id]) Object.assign(_bksCache[id], patch);
 }
 
 async function deleteRemoteBk(id) {
-  await apiCall({ action: 'delete', id });
+  const params = new URLSearchParams({ action:'delete', id });
+  try {
+    await fetch(API_URL + '?' + params.toString(), {
+      method: 'GET',
+      mode: 'no-cors'
+    });
+  } catch(e) { /* 忽略 */ }
   delete _bksCache[id];
 }
 
