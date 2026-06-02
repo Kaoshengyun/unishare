@@ -121,20 +121,35 @@ const USAGE_RULES = [
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return {};
-  // 解析 header，自動處理有無「時間戳記」
-  let headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  // 如果第一欄是時間戳記，略過它
+  // 正規化 header：去空白、統一小寫比較、修正 paidAT -> paidAt
+  let headers = lines[0].split(',').map(h => {
+    h = h.trim().replace(/^"|"$/g, '');
+    if (h.toLowerCase() === 'paidat') return 'paidAt';
+    return h.trim();
+  });
+  // 跳過時間戳記欄
   const offset = headers[0].includes('時間戳記') || headers[0].toLowerCase().includes('timestamp') ? 1 : 0;
   if (offset) headers = headers.slice(1);
   const result = {};
-  // 從第1行開始（跳過header，不跳第二行中文）
-  const startRow = 1;
-  for (let i = startRow; i < lines.length; i++) {
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
     const allVals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
     const vals = offset ? allVals.slice(1) : allVals;
     const obj = {};
-    headers.forEach((h, j) => obj[h] = vals[j] || '');
-    if (obj.id) result[obj.id] = { ...obj, sh: Number(obj.sh), eh: Number(obj.eh), price: Number(obj.price) };
+    headers.forEach((h, j) => obj[h] = vals[j] !== undefined ? vals[j].trim() : '');
+    if (!obj.id) continue;
+    // sh/eh：支援 "11:00" 或 "11" 兩種格式
+    const parseHour = v => {
+      if (!v) return 0;
+      if (String(v).includes(':')) return Number(String(v).split(':')[0]);
+      return Number(v);
+    };
+    result[obj.id] = {
+      ...obj,
+      sh: parseHour(obj.sh),
+      eh: parseHour(obj.eh),
+      price: Number(String(obj.price).replace(/[^0-9.]/g, '')) || 0
+    };
   }
   return result;
 }
