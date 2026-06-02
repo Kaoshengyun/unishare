@@ -108,7 +108,7 @@ let _bksCache = {};
 
 async function loadRemoteBks() {
   try {
-    const res = await fetch(API_URL + '?action=getAll&t=' + Date.now());
+    const res = await fetch(API_URL + '?action=getAll&t=' + Date.now(), { redirect: 'follow' });
     const data = await res.json();
     const result = {};
     if (Array.isArray(data)) {
@@ -130,6 +130,8 @@ async function loadRemoteBks() {
     _bksCache = result;
   } catch(e) {
     console.error('讀取預約失敗', e);
+    // 若 Apps Script 失敗，回傳空物件不擋畫面
+    _bksCache = {};
   }
   return _bksCache;
 }
@@ -139,8 +141,9 @@ function loadLocalBks() { return _bksCache; }
 /* ══ 寫入：Apps Script ══ */
 async function apiCall(params) {
   const url = API_URL + '?' + new URLSearchParams(params);
-  const res = await fetch(url);
-  return res.json();
+  const res = await fetch(url, { redirect: 'follow' });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch(e) { return { error: text }; }
 }
 
 async function saveRemoteBk(id, bk) {
