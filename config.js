@@ -119,6 +119,8 @@ async function loadRemoteBks() {
           if (String(v).includes(':')) return Number(String(v).split(':')[0]);
           return Number(v);
         };
+        // 過濾掉已刪除或資料不完整的紀錄
+        if (b.status === 'deleted' || !b.date || !b.sh || !b.eh) return;
         result[b.id] = {
           ...b,
           sh: parseHour(b.sh),
@@ -277,8 +279,8 @@ function twParts(date) {
 }
 function todayDS() { const {y,m,d}=twParts(); return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
 function isTodayDS(ds) { return ds===todayDS(); }
-function isPastDateDS(ds) { return ds<todayDS(); }
-function wdIndex(ds) { const [y,m,d]=ds.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
+function isPastDateDS(ds) { if(!ds) return true; return ds<todayDS(); }
+function wdIndex(ds) { if(!ds||typeof ds!=='string'||!ds.includes('-')) return 0; const [y,m,d]=ds.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
 function isWE(ds) { const w=wdIndex(ds); return w===0||w===6; }
 function minStartHour(ds) {
   if (!isTodayDS(ds)) return OPEN;
