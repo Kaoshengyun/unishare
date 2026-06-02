@@ -16,15 +16,15 @@ const RESERVE_HOURS = 3;
 const LINE_ID  = '@587kkhwv';
 const LIFF_ID  = '';
 
-const PHONE    = '02-2517-6991';
-const MOBILE   = '0936455155';
+const PHONE      = '02-2517-6991';
+const MOBILE     = '0936455155';
 const CONTACT_NM = '蔡小姐';
-const ADDR     = '台北市中山區長春路172號 9樓';
-const SITE_NAME = '由你分享空間';
-const SITE_TAG  = '台北市中山區・捷運步行可達';
+const ADDR       = '台北市中山區長春路172號 9樓';
+const SITE_NAME  = '由你分享空間';
+const SITE_TAG   = '台北市中山區・捷運松江南京站步行4分鐘';
 
 const ICONS = {
-  site:         'image/sofa.png',
+  site:         'image/分享空間logo.png',
   chair:        'image/chair.png',
   desk:         'image/desk.png',
   wifi:         'image/wifi.png',
@@ -43,18 +43,34 @@ const ICONS = {
   clean:        'image/clean.png',
   tidy:         'image/tidy.png',
   time:         'image/time.png',
-  leave:        'image/leave (1).png',
+  leave:        'image/leave.png',
   phone:        'image/phone.png',
   mobile:       'image/mobile.png',
   location:     'image/location.png',
   check:        'image/point.png',
+  status:       'image/status.png',
+  date:         'image/date.png',
+  date_click:   'image/date_click.png',
+  list:         'image/list.png',
+  list_click:   'image/list_click.png',
+  reserve:      'image/reserve.png',
+  pay:          'image/pay.png',
+  name:         'image/name.png',
+  chat:         'image/chat.png',
+  search:       'image/search.png',
+  lock:         'image/lock.png',
+  confirm:      'image/check.png',
   cancel:       'image/cancel.png',
+  delete:       'image/delete.png',
   announcement: 'image/announcement.png'
 };
 const SITE_ICON = ICONS.site;
 
 const SPACE_PHOTOS = [
   'image/空間圖片.jpg',
+  'image/空間圖片2.jpg',
+  'image/空間圖片3.jpg',
+  'image/空間圖片4.jpg',
 ];
 
 const EQUIPMENT = [
@@ -88,9 +104,7 @@ const USAGE_RULES = [
   { icon:ICONS.leave,  title:'離場請勿久留', text:'離場時請勿在公共區域群聚。若打擾到公共安寧，相關責任需自行承擔。' }
 ];
 
-/* ══ 讀取：用公開 CSV ══ */
-let _bksCache = {};
-
+/* ══ CSV 解析 ══ */
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   if (lines.length < 3) return {};
@@ -100,10 +114,13 @@ function parseCSV(text) {
     const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
     const obj = {};
     headers.forEach((h, j) => obj[h] = vals[j] || '');
-    if (obj.id) result[obj.id] = { ...obj, sh: Number(obj.sh), eh: Number(obj.eh) };
+    if (obj.id) result[obj.id] = { ...obj, sh: Number(obj.sh), eh: Number(obj.eh), price: Number(obj.price) };
   }
   return result;
 }
+
+/* ══ 讀取：公開 CSV ══ */
+let _bksCache = {};
 
 async function loadRemoteBks() {
   try {
@@ -111,80 +128,55 @@ async function loadRemoteBks() {
     const text = await res.text();
     _bksCache = parseCSV(text);
   } catch(e) {
-    console.error('讀取失敗', e);
-    _bksCache = {};
+    console.error('讀取預約失敗', e);
   }
   return _bksCache;
 }
 
-function loadLocalBks() {
-  return _bksCache;
-}
+function loadLocalBks() { return _bksCache; }
 
-/* ══ 寫入：用 no-cors POST ══ */
+/* ══ 寫入：no-cors GET ══ */
 async function saveRemoteBk(id, bk) {
-  const params = new URLSearchParams({ action:'add', id, ...bk });
-  try {
-    await fetch(API_URL + '?' + params.toString(), {
-      method: 'GET',
-      mode: 'no-cors'
-    });
-  } catch(e) { /* no-cors 一定會 catch，忽略 */ }
-  _bksCache[id] = bk;
+  const p = new URLSearchParams({ action:'add', id, ...bk });
+  try { await fetch(API_URL + '?' + p, { mode:'no-cors' }); } catch(e) {}
+  _bksCache[id] = { id, ...bk };
 }
 
 async function updateRemoteBk(id, patch) {
-  const params = new URLSearchParams({ action:'update', id, ...patch });
-  try {
-    await fetch(API_URL + '?' + params.toString(), {
-      method: 'GET',
-      mode: 'no-cors'
-    });
-  } catch(e) { /* 忽略 */ }
+  const p = new URLSearchParams({ action:'update', id, ...patch });
+  try { await fetch(API_URL + '?' + p, { mode:'no-cors' }); } catch(e) {}
   if (_bksCache[id]) Object.assign(_bksCache[id], patch);
 }
 
 async function deleteRemoteBk(id) {
-  const params = new URLSearchParams({ action:'delete', id });
-  try {
-    await fetch(API_URL + '?' + params.toString(), {
-      method: 'GET',
-      mode: 'no-cors'
-    });
-  } catch(e) { /* 忽略 */ }
+  const p = new URLSearchParams({ action:'delete', id });
+  try { await fetch(API_URL + '?' + p, { mode:'no-cors' }); } catch(e) {}
   delete _bksCache[id];
 }
 
 /* ══ 關閉時段（localStorage） ══ */
 function loadBlocks() {
-  try { return JSON.parse(localStorage.getItem(BLOCKS_KEY) || '{}'); }
-  catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(BLOCKS_KEY) || '{}'); } catch { return {}; }
 }
-
 function saveBlocks(all) {
   try { localStorage.setItem(BLOCKS_KEY, JSON.stringify(all)); }
   catch(e) { throw new Error('無法儲存關閉時段設定'); }
 }
-
 function allBlocksList() {
   return Object.entries(loadBlocks()).map(([id,b]) => ({id,...b}));
 }
-
 function dayBlocks(ds) {
   return allBlocksList().filter(b => b.date === ds).sort((a,b) => a.sh - b.sh);
 }
-
 function slotOverlapsBlock(ds, sh, eh) {
   return dayBlocks(ds).some(b => ovlp(sh, eh, b.sh, b.eh));
 }
-
 function isRangeAvailable(ds, sh, eh) {
   if (sh >= eh) return false;
   if (sh < OPEN || eh > CLOSE) return false;
   if (slotOverlapsBlock(ds, sh, eh)) return false;
-  return !Object.values(loadLocalBks()).some(b => b.date === ds && blocksSlot(b) && ovlp(sh, eh, b.sh, b.eh));
+  return !Object.values(loadLocalBks()).some(b => b.date===ds && blocksSlot(b) && ovlp(sh,eh,b.sh,b.eh));
 }
-
 function addBlockEntry(date, sh, eh, note) {
   if (isPastDateDS(date)) throw new Error('無法關閉已過去的日期');
   if (sh >= eh) throw new Error('結束時間需晚於開始時間');
@@ -196,155 +188,92 @@ function addBlockEntry(date, sh, eh, note) {
   saveBlocks(all);
   return id;
 }
-
 function removeBlockEntry(id) {
   const all = loadBlocks();
   if (!all[id]) return false;
-  delete all[id];
-  saveBlocks(all);
-  return true;
+  delete all[id]; saveBlocks(all); return true;
 }
 
 /* ══ 預約狀態 ══ */
-function reserveExpiresAt(b) {
-  return new Date(b.ts).getTime() + RESERVE_HOURS * 3600000;
-}
-
-function isReserveExpired(b) {
-  return (b.status || 'reserved') === 'reserved' && Date.now() > reserveExpiresAt(b);
-}
-
+function reserveExpiresAt(b) { return new Date(b.ts).getTime() + RESERVE_HOURS * 3600000; }
+function isReserveExpired(b) { return (b.status||'reserved')==='reserved' && Date.now() > reserveExpiresAt(b); }
 function blocksSlot(b) {
   const st = b.status || 'reserved';
-  if (st === 'paid') return true;
-  if (st === 'reserved') return !isReserveExpired(b);
+  if (st==='paid') return true;
+  if (st==='reserved') return !isReserveExpired(b);
   return false;
 }
-
 function getStatusInfo(b) {
   const st = b.status || 'reserved';
-  if (st === 'paid') return { label: b.source === 'admin' ? '代客・預約成功' : '預約成功', cls:'paid' };
-  if (st === 'reserved' && isReserveExpired(b)) return { label:'已釋出（逾時未繳）', cls:'expired' };
-  if (st === 'reserved') return { label: b.source === 'admin' ? '代客・待繳費' : '已保留（待繳費）', cls:'reserved' };
+  if (st==='paid') return { label: b.source==='admin'?'代客・預約成功':'預約成功', cls:'paid' };
+  if (st==='reserved' && isReserveExpired(b)) return { label:'已釋出（逾時未繳）', cls:'expired' };
+  if (st==='reserved') return { label: b.source==='admin'?'代客・待繳費':'已保留（待繳費）', cls:'reserved' };
   return { label:'已保留（待繳費）', cls:'reserved' };
 }
-
 function formatReserveRemain(b) {
   const ms = reserveExpiresAt(b) - Date.now();
   if (ms <= 0) return '已逾時';
   const min = Math.ceil(ms / 60000);
-  if (min >= 60) return `剩 ${Math.floor(min/60)} 小時 ${min % 60} 分`;
+  if (min >= 60) return `剩 ${Math.floor(min/60)} 小時 ${min%60} 分`;
   return `剩 ${min} 分鐘`;
 }
-
 async function markBookingPaid(id) {
   await updateRemoteBk(id, { status:'paid', paidAt: new Date().toISOString() });
 }
-
-async function deleteBooking(id) {
-  await deleteRemoteBk(id);
-}
-
-async function addAdminBooking({date, sh, eh, name, phone, status}) {
+async function deleteBooking(id) { await deleteRemoteBk(id); }
+async function addAdminBooking({date,sh,eh,name,phone,status}) {
   if (isPastDateDS(date)) throw new Error('無法預約已過去的日期');
   if (sh >= eh) throw new Error('結束時間需晚於開始時間');
-  if (eh - sh < MIN_DUR) throw new Error(`最少需預約 ${MIN_DUR} 小時`);
-  if (!name || !name.trim()) throw new Error('請填寫姓名');
+  if (eh-sh < MIN_DUR) throw new Error(`最少需預約 ${MIN_DUR} 小時`);
+  if (!name||!name.trim()) throw new Error('請填寫姓名');
   const pv = validateTWPhone(phone);
   if (!pv.ok) throw new Error(pv.err);
   if (!isRangeAvailable(date, sh, eh)) throw new Error('此時段已被預約或關閉');
-  const st = status === 'paid' ? 'paid' : 'reserved';
+  const st = status==='paid'?'paid':'reserved';
   const id = 'bk_' + Date.now();
-  const bk = {
-    date, sh, eh,
-    name: name.trim(),
-    phone: pv.phone,
-    price: calcPrice(sh, eh),
-    status: st,
-    source: 'admin',
-    ts: new Date().toISOString(),
-    paidAt: st === 'paid' ? new Date().toISOString() : ''
-  };
+  const bk = { date, sh, eh, name:name.trim(), phone:pv.phone, price:calcPrice(sh,eh), status:st, source:'admin', ts:new Date().toISOString(), paidAt:st==='paid'?new Date().toISOString():'' };
   await saveRemoteBk(id, bk);
   return id;
 }
 
-/* ══ 工具函式 ══ */
-function lineAddUrl() {
-  const id = LINE_ID.replace(/^@/, '');
-  return 'https://line.me/R/ti/p/@' + id;
-}
-
+/* ══ 工具 ══ */
+function lineAddUrl() { return 'https://line.me/R/ti/p/@' + LINE_ID.replace(/^@/,''); }
 function iconHtml(icon, cls) {
-  const src = String(icon || SITE_ICON).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  const src = String(icon||SITE_ICON).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   return `<img src="${src}" alt="" class="${cls||'site-icon-img'}">`;
 }
-
-function logoHtml(cls) {
-  return iconHtml(SITE_ICON, cls || 'logo-img');
-}
-
+function logoHtml(cls) { return iconHtml(SITE_ICON, cls||'logo-img'); }
 function normalizeTWPhone(raw) {
   if (!raw) return null;
-  let s = String(raw).trim().replace(/[\s\-()]/g, '');
-  if (s.startsWith('+886')) s = '0' + s.slice(4);
-  else if (s.startsWith('886')) s = '0' + s.slice(3);
+  let s = String(raw).trim().replace(/[\s\-()]/g,'');
+  if (s.startsWith('+886')) s = '0'+s.slice(4);
+  else if (s.startsWith('886')) s = '0'+s.slice(3);
   return /^09\d{8}$/.test(s) ? s : null;
 }
-
 function validateTWPhone(raw) {
   const phone = normalizeTWPhone(raw);
   if (phone) return { ok:true, phone };
   return { ok:false, err:'請輸入正確的台灣手機號碼（09 開頭，共 10 碼）' };
 }
-
 function formatTWPhone(p) {
   const n = normalizeTWPhone(p);
   return n ? `${n.slice(0,4)}-${n.slice(4,7)}-${n.slice(7)}` : p;
 }
-
-const ovlp = (s1,e1,s2,e2) => s1 < e2 && e1 > s2;
-
-function calcPrice(sh, eh) {
-  const d = eh - sh;
-  return d >= MIN_DUR ? d * RATE : 0;
-}
-
+const ovlp = (s1,e1,s2,e2) => s1<e2 && e1>s2;
+function calcPrice(sh,eh) { const d=eh-sh; return d>=MIN_DUR?d*RATE:0; }
 const TZ = 'Asia/Taipei';
-
 function twParts(date) {
-  const d = date || new Date();
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TZ,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-    hour12: false
-  }).formatToParts(d);
-  const g = t => p.find(x => x.type === t).value;
+  const d = date||new Date();
+  const p = new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d);
+  const g = t => p.find(x=>x.type===t).value;
   return { y:+g('year'), m:+g('month'), d:+g('day'), h:+g('hour'), min:+g('minute') };
 }
-
-function todayDS() {
-  const {y,m,d} = twParts();
-  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-}
-
-function isTodayDS(ds) { return ds === todayDS(); }
-function isPastDateDS(ds) { return ds < todayDS(); }
-
-function wdIndex(ds) {
-  const [y,m,d] = ds.split('-').map(Number);
-  return new Date(y, m-1, d).getDay();
-}
-
-function isWE(ds) {
-  const w = wdIndex(ds);
-  return w === 0 || w === 6;
-}
-
+function todayDS() { const {y,m,d}=twParts(); return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function isTodayDS(ds) { return ds===todayDS(); }
+function isPastDateDS(ds) { return ds<todayDS(); }
+function wdIndex(ds) { const [y,m,d]=ds.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
+function isWE(ds) { const w=wdIndex(ds); return w===0||w===6; }
 function minStartHour(ds) {
   if (!isTodayDS(ds)) return OPEN;
-  const {h, min} = twParts();
-  const cur = min > 0 ? h + 1 : h;
-  return Math.max(OPEN, cur);
+  const {h,min}=twParts(); const cur=min>0?h+1:h; return Math.max(OPEN,cur);
 }
