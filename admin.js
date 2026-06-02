@@ -96,18 +96,19 @@ function pickCalDate(ds){
   render();
 }
 
-function hourOpts(sel, minH, maxH){
+function hourOpts(sel, minH, maxH, bookedHours){
   if(minH > maxH) return `<option value="">無可用時段</option>`;
   let o = '';
   for(let h = minH; h <= maxH; h++){
-    o += `<option value="${h}"${h === sel ? ' selected' : ''}>${fH(h)}</option>`;
+    const blocked = bookedHours && bookedHours.includes(h);
+    o += `<option value="${h}"${h === sel ? ' selected' : ''}${blocked ? ' disabled' : ''}>${fH(h)}${blocked ? ' ✗已預約' : ''}</option>`;
   }
   return o;
 }
 
-function endOptsFromStart(sh, minGap){
+function endOptsFromStart(sh, minGap, bookedHours){
   const minEh = sh + minGap;
-  return hourOpts(minEh, minEh, CLOSE);
+  return hourOpts(minEh, minEh, CLOSE, bookedHours);
 }
 
 /** 依開始時間更新結束時間選單（僅顯示當日剩餘時段） */
@@ -120,7 +121,16 @@ function syncAdminEndOpts(prefix){
   const minEh = sh + minGap;
   const prev = +ehEl.value;
   const sel = prev >= minEh && prev <= CLOSE ? prev : minEh;
-  ehEl.innerHTML = endOptsFromStart(sh, minGap);
+  // 計算已佔用時段
+  const list = selDate ? dayBks(selDate) : [];
+  const blocks = selDate ? dayBlocks(selDate) : [];
+  const bookedHours = [];
+  for(let h = OPEN; h < CLOSE; h++){
+    const occupied = list.some(b => blocksSlot(b) && b.sh <= h && b.eh > h);
+    const blocked = blocks.some(b => b.sh <= h && b.eh > h);
+    if(occupied || blocked) bookedHours.push(h);
+  }
+  ehEl.innerHTML = endOptsFromStart(sh, minGap, bookedHours);
   if(ehEl.options.length && sel >= minEh) ehEl.value = String(sel);
 }
 
@@ -299,10 +309,17 @@ function renderDayPanel(){
   }
 
   const maxStart = Math.max(minSH, CLOSE - MIN_DUR);
-  const bkStartOpts = hourOpts(minSH, minSH, maxStart);
-  const bkEndOpts = endOptsFromStart(minSH, MIN_DUR);
-  const blkStartOpts = hourOpts(minSH, minSH, CLOSE - 1);
-  const blkEndOpts = endOptsFromStart(minSH, 1);
+  // 計算已被佔用的小時（給代客預約和關閉時段用）
+  const bookedHoursForStart = [];
+  for(let h = OPEN; h < CLOSE; h++){
+    const occupied = list.some(b => blocksSlot(b) && b.sh <= h && b.eh > h);
+    const blocked = blocks.some(b => b.sh <= h && b.eh > h);
+    if(occupied || blocked) bookedHoursForStart.push(h);
+  }
+  const bkStartOpts = hourOpts(minSH, minSH, maxStart, bookedHoursForStart);
+  const bkEndOpts = endOptsFromStart(minSH, MIN_DUR, bookedHoursForStart);
+  const blkStartOpts = hourOpts(minSH, minSH, CLOSE - 1, bookedHoursForStart);
+  const blkEndOpts = endOptsFromStart(minSH, 1, bookedHoursForStart);
 
   const adminForms = past ? `<div class="admin-note">此日期已過，僅供查看紀錄</div>` : `
     <div class="admin-panel">
