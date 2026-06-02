@@ -2,21 +2,7 @@
    ⚠️  網站設定
    ═══════════════════════════════════════════════ */
 
-const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfOOR4jKBrC3y3_Q_rRtcXVNaCqFAGz99VYTGpdsORV1FKnHA/formResponse';
-const FORM_FIELDS = {
-  id:      'entry.403784970',
-  date:    'entry.828530108',
-  sh:      'entry.662974968',
-  eh:      'entry.340059178',
-  name:    'entry.1076069062',
-  phone:   'entry.528036549',
-  price:   'entry.1693986945',
-  status:  'entry.795255319',
-  source:  'entry.260390198',
-  ts:      'entry.413342022',
-  paidAt:  'entry.1354803585'
-};
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQtWR3rENgJJ1AAVwWVWziOlVKCsqInE7HzEr1I-PXPhWgKyj2kwVhPuvAricNGpDLTKRCacYOZHue4/pub?gid=1519864551&single=true&output=csv';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwqsWzwOoUeWfWPOR3NXMUcR5BnZ4nzR672IRie9cmz3aBKM410rV8G7_jM_5Do4X7frA/exec';
 
 const BLOCKS_KEY  = 'youni_blocks';
 const ADMIN_PW    = '54662771';
@@ -117,51 +103,31 @@ const USAGE_RULES = [
   { icon:ICONS.leave,  title:'離場請勿久留', text:'離場時請勿在公共區域群聚。若打擾到公共安寧，相關責任需自行承擔。' }
 ];
 
-/* ══ CSV 解析 ══ */
-function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return {};
-  // 正規化 header：去空白、統一小寫比較、修正 paidAT -> paidAt
-  let headers = lines[0].split(',').map(h => {
-    h = h.trim().replace(/^"|"$/g, '');
-    if (h.toLowerCase() === 'paidat') return 'paidAt';
-    return h.trim();
-  });
-  // 跳過時間戳記欄
-  const offset = headers[0].includes('時間戳記') || headers[0].toLowerCase().includes('timestamp') ? 1 : 0;
-  if (offset) headers = headers.slice(1);
-  const result = {};
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-    const allVals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-    const vals = offset ? allVals.slice(1) : allVals;
-    const obj = {};
-    headers.forEach((h, j) => obj[h] = vals[j] !== undefined ? vals[j].trim() : '');
-    if (!obj.id) continue;
-    // sh/eh：支援 "11:00" 或 "11" 兩種格式
-    const parseHour = v => {
-      if (!v) return 0;
-      if (String(v).includes(':')) return Number(String(v).split(':')[0]);
-      return Number(v);
-    };
-    result[obj.id] = {
-      ...obj,
-      sh: parseHour(obj.sh),
-      eh: parseHour(obj.eh),
-      price: Number(String(obj.price).replace(/[^0-9.]/g, '')) || 0
-    };
-  }
-  return result;
-}
-
-/* ══ 讀取：公開 CSV ══ */
+/* ══ 讀取 + 寫入：Apps Script ══ */
 let _bksCache = {};
 
 async function loadRemoteBks() {
   try {
-    const res = await fetch(CSV_URL + '&t=' + Date.now());
-    const text = await res.text();
-    _bksCache = parseCSV(text);
+    const res = await fetch(API_URL + '?action=getAll&t=' + Date.now());
+    const data = await res.json();
+    const result = {};
+    if (Array.isArray(data)) {
+      data.forEach(b => {
+        if (!b.id) return;
+        const parseHour = v => {
+          if (!v) return 0;
+          if (String(v).includes(':')) return Number(String(v).split(':')[0]);
+          return Number(v);
+        };
+        result[b.id] = {
+          ...b,
+          sh: parseHour(b.sh),
+          eh: parseHour(b.eh),
+          price: Number(String(b.price).replace(/[^0-9.]/g, '')) || 0
+        };
+      });
+    }
+    _bksCache = result;
   } catch(e) {
     console.error('讀取預約失敗', e);
   }
@@ -170,33 +136,25 @@ async function loadRemoteBks() {
 
 function loadLocalBks() { return _bksCache; }
 
-/* ══ 寫入：Google Forms（保證可用） ══ */
-async function submitToForm(data) {
-  const body = new URLSearchParams();
-  Object.keys(FORM_FIELDS).forEach(k => {
-    body.append(FORM_FIELDS[k], data[k] !== undefined ? data[k] : '');
-  });
-  try {
-    await fetch(FORM_URL, { method:'POST', mode:'no-cors', body });
-  } catch(e) {}
+/* ══ 寫入：Apps Script ══ */
+async function apiCall(params) {
+  const url = API_URL + '?' + new URLSearchParams(params);
+  const res = await fetch(url);
+  return res.json();
 }
 
 async function saveRemoteBk(id, bk) {
-  await submitToForm({ id, ...bk });
+  await apiCall({ action:'add', id, ...bk });
   _bksCache[id] = { id, ...bk };
 }
 
 async function updateRemoteBk(id, patch) {
-  // 更新：先從 cache 取得完整資料再整筆重送
-  const full = { ...(_bksCache[id] || {}), ...patch, id };
-  await submitToForm(full);
+  await apiCall({ action:'update', id, ...patch });
   if (_bksCache[id]) Object.assign(_bksCache[id], patch);
 }
 
 async function deleteRemoteBk(id) {
-  // Google Forms 無法刪除，改用標記方式
-  const full = { ...(_bksCache[id] || {}), status:'deleted', id };
-  await submitToForm(full);
+  await apiCall({ action:'delete', id });
   delete _bksCache[id];
 }
 
