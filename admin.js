@@ -343,7 +343,7 @@ function renderDash(){
 </nav>
 
 <div class="dash">
-  <div class="local-hint">${admIco(ICONS.time)} 待繳費保留 ${RESERVE_HOURS} 小時，逾時自動釋出。日曆檢視可<strong>關閉時段</strong>或<strong>代客預約</strong>，客戶端會同步顯示。</div>
+  <div class="local-hint">${admIco(ICONS.time)}<span class="local-hint-t">待繳費保留 ${RESERVE_HOURS} 小時，逾時自動釋出。日曆檢視可<strong>關閉時段</strong>或<strong>代客預約</strong>，客戶端會同步顯示。</span></div>
 
   <div class="stats-row">
     <div class="stat"><div class="stat-l">待繳費</div><div class="stat-v">${st.reserved}</div></div>
