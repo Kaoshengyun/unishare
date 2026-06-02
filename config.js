@@ -16,7 +16,7 @@ const FORM_FIELDS = {
   ts:      'entry.413342022',
   paidAt:  'entry.1354803585'
 };
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQtWR3rENgJJ1AAVwWVWziOlVKCsqInE7HzEr1I-PXPhWgKyj2kwVhPuvAricNGpDLTKRCacYOZHue4/pub?output=csv';
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQtWR3rENgJJ1AAVwWVWziOlVKCsqInE7HzEr1I-PXPhWgKyj2kwVhPuvAricNGpDLTKRCacYOZHue4/pub?gid=1519864551&single=true&output=csv';
 
 const BLOCKS_KEY  = 'youni_blocks';
 const ADMIN_PW    = '54662771';
@@ -120,11 +120,18 @@ const USAGE_RULES = [
 /* ══ CSV 解析 ══ */
 function parseCSV(text) {
   const lines = text.trim().split('\n');
-  if (lines.length < 3) return {};
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  if (lines.length < 2) return {};
+  // 解析 header，自動處理有無「時間戳記」
+  let headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  // 如果第一欄是時間戳記，略過它
+  const offset = headers[0].includes('時間戳記') || headers[0].toLowerCase().includes('timestamp') ? 1 : 0;
+  if (offset) headers = headers.slice(1);
   const result = {};
-  for (let i = 2; i < lines.length; i++) {
-    const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+  // 從第1行開始（跳過header，不跳第二行中文）
+  const startRow = 1;
+  for (let i = startRow; i < lines.length; i++) {
+    const allVals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const vals = offset ? allVals.slice(1) : allVals;
     const obj = {};
     headers.forEach((h, j) => obj[h] = vals[j] || '');
     if (obj.id) result[obj.id] = { ...obj, sh: Number(obj.sh), eh: Number(obj.eh), price: Number(obj.price) };
