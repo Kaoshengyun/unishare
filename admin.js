@@ -52,9 +52,8 @@ async function checkPw(){
     const tp = twParts();
     calYr = tp.y;
     calMo = tp.m - 1;
-    document.getElementById('root').innerHTML = '<div style="text-align:center;padding:80px 20px;color:#1597DD;font-size:14px">⏳ 載入預約資料中…</div>';
-    await refreshBks();
-    render();
+    render(); // 先顯示後台（空資料）
+    refreshBks(); // 背景載入，不阻擋畫面
   }else{
     document.getElementById('pw-err').style.display = 'block';
     document.getElementById('pw').value = '';
