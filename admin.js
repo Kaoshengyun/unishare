@@ -101,7 +101,7 @@ function hourOpts(sel, minH, maxH, bookedHours){
   let o = '';
   for(let h = minH; h <= maxH; h++){
     const blocked = bookedHours && bookedHours.includes(h);
-    o += `<option value="${h}"${h === sel ? ' selected' : ''}${blocked ? ' disabled' : ''}>${fH(h)}${blocked ? ' ✗已預約' : ''}</option>`;
+    o += `<option value="${h}"${h === sel ? ' selected' : ''}${blocked ? ' disabled' : ''}>${fH(h)}${blocked ? ' 🔴 已預約' : ''}</option>`;
   }
   return o;
 }
